@@ -1,21 +1,17 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from "#imports";
+import { browser, onMounted, ref } from "#imports";
 import subaruImage from "@/assets/subaru_host_phone.jpg";
 import usamiImage from "@/assets/usami_join_phone.jpg";
 import { onMessage, sendMessage } from "@/messaging";
 
 const PAGE_COUNT = 2;
-const PING_INTERVAL_MS = 2000;
 
 const currentPage = ref(0);
 
 const connectionStatus = ref(false);
-const ping = ref(0);
 
 const peerId = ref("");
 const hostPeerId = ref("");
-
-let pingInterval: NodeJS.Timeout | null = null;
 
 const movePage = (direction: 1 | -1) => {
 	currentPage.value = (currentPage.value + direction + PAGE_COUNT) % PAGE_COUNT;
@@ -23,6 +19,19 @@ const movePage = (direction: 1 | -1) => {
 
 const refresh = async () => {
 	peerId.value = await sendMessage("peer:refresh-id");
+};
+
+const openSettings = async () => {
+	try {
+		await browser.windows.create({
+			url: browser.runtime.getURL("/settings.html"),
+			type: "popup",
+			width: 460,
+			height: 680,
+		});
+	} catch (err) {
+		console.error(err);
+	}
 };
 
 const copy = async () => {
@@ -50,33 +59,19 @@ const disconnect = () => {
 	sendMessage("peer:disconnect");
 	peerId.value = "UNKNOWN";
 	connectionStatus.value = false;
-	ping.value = 0;
-};
-
-const updatePing = async () => {
-	ping.value = await sendMessage("peer:ping");
 };
 
 const initialize = async () => {
 	peerId.value = await sendMessage("peer:id");
 	connectionStatus.value = await sendMessage("peer:connection-status");
-	await updatePing();
 };
 
 onMounted(async () => {
 	await initialize();
 
-	pingInterval = setInterval(updatePing, PING_INTERVAL_MS);
-
 	onMessage("peer:connection-change", (msg) => {
 		connectionStatus.value = msg.data;
 	});
-});
-
-onUnmounted(() => {
-	if (pingInterval) {
-		clearInterval(pingInterval);
-	}
 });
 </script>
 
@@ -115,17 +110,6 @@ onUnmounted(() => {
 
 					<span>
 						{{ connectionStatus ? "Connected" : "Disconnected" }}
-					</span>
-
-					<span
-						v-if="connectionStatus"
-						:class="{
-							'text-green-200': ping < 100,
-							'text-yellow-200': ping >= 100 && ping < 250,
-							'text-red-200': ping >= 250,
-						}"
-					>
-						· {{ ping }}ms
 					</span>
 				</div>
 			</div>
@@ -189,7 +173,7 @@ onUnmounted(() => {
 				/>
 
 				<section class="absolute bottom-0 flex w-full flex-col gap-2 p-4 pb-8">
-					<div class="inline-flex items-center gap-2">
+					<div class="flex w-full items-center gap-2">
 						<span class="text-white/80">Currently</span>
 
 						<span
@@ -198,6 +182,24 @@ onUnmounted(() => {
 						>
 							Hosting
 						</span>
+
+						<button
+							class="ml-auto flex size-9 cursor-pointer items-center justify-center rounded-sm text-white/80 backdrop-blur-md transition-opacity hover:opacity-80"
+							title="Settings"
+							@click="openSettings"
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								width="1.5em"
+								height="1.5em"
+								viewBox="0 0 24 24"
+							>
+								<path
+									fill="currentColor"
+									d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5s3.5 1.57 3.5 3.5s-1.57 3.5-3.5 3.5"
+								/>
+							</svg>
+						</button>
 					</div>
 
 					<div

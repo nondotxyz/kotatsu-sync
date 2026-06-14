@@ -3,7 +3,6 @@ import type { VideoData } from "./entrypoints/kwik.content";
 
 interface ProtocolMap {
 	"peer:id": () => string;
-	"peer:ping": () => number;
 	"peer:connection-status": () => boolean;
 	"peer:connection-change": (status: boolean) => void;
 	"peer:join": (hostPeerId: string) => boolean;
