@@ -16,7 +16,7 @@
 
 Kotatsu Sync is a browser extension that lets you sync playback between two instances of [animepahe](https://animepahe.pw) so you can watch together with a friend.
 
-[Download latest releases (0.0.1)](/releases)
+[Download latest releases (0.0.1)](https://github.com/nondotxyz/kotatsu-sync/releases/)
 
 # Why?
 
