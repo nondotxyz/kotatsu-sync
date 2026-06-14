@@ -1,8 +1,65 @@
 import { browser, defineBackground } from "#imports";
 import { onMessage, sendMessage } from "@/messaging";
+import { turnApiToken, turnKeyId } from "@/storage";
 import type { Nullable } from "@/type";
 import { DataConnection, Peer } from "peerjs";
 import type { VideoData } from "./kwik.content";
+
+// Used when the user hasn't configured Cloudflare TURN credentials. STUN alone
+// works for most home connections, but fails behind strict firewalls / CGNAT.
+const FALLBACK_ICE_SERVERS: RTCIceServer[] = [
+	{ urls: "stun:stun.l.google.com:19302" },
+];
+
+/**
+ * Generates short-lived ICE servers from the user's own Cloudflare TURN app.
+ * Falls back to plain STUN if no credentials are set or the request fails, so
+ * the extension still works for easy-NAT users instead of breaking entirely.
+ */
+async function fetchIceServers(): Promise<RTCIceServer[]> {
+	const keyId = (await turnKeyId.getValue()).trim();
+	const apiToken = (await turnApiToken.getValue()).trim();
+
+	if (!keyId || !apiToken) {
+		console.warn("[TURN] No Cloudflare credentials set — using STUN only.");
+		return FALLBACK_ICE_SERVERS;
+	}
+
+	try {
+		const res = await fetch(
+			`https://rtc.live.cloudflare.com/v1/turn/keys/${keyId}/credentials/generate-ice-servers`,
+			{
+				method: "POST",
+				headers: {
+					Authorization: `Bearer ${apiToken}`,
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({ ttl: 86400 }),
+			},
+		);
+
+		if (!res.ok) {
+			console.error(
+				"[TURN] Failed to generate ICE servers:",
+				res.status,
+				await res.text(),
+			);
+			return FALLBACK_ICE_SERVERS;
+		}
+
+		const data = await res.json();
+		// Cloudflare returns a single iceServers object; PeerJS expects an array.
+		const iceServers: RTCIceServer[] = Array.isArray(data.iceServers)
+			? data.iceServers
+			: [data.iceServers];
+
+		console.debug("[TURN] Using Cloudflare ICE servers.");
+		return iceServers;
+	} catch (err) {
+		console.error("[TURN] Error generating ICE servers:", err);
+		return FALLBACK_ICE_SERVERS;
+	}
+}
 
 interface MessageObject {
 	type: string;
@@ -17,9 +74,6 @@ export default defineBackground(() => {
 		public peer: Nullable<Peer> = null;
 		public connection: Nullable<DataConnection> = null;
 		public status: "HOST" | "JOIN" | "UNKNOWN" = "UNKNOWN";
-
-		private pingInterval: Nullable<NodeJS.Timeout> = null;
-		public ping = 0;
 
 		public animepaheTab: Nullable<number> = null;
 
@@ -47,7 +101,6 @@ export default defineBackground(() => {
 		private setupMessagingChannel() {
 			onMessage("peer:id", () => this.peerId);
 			onMessage("peer:connection-status", () => this.connectionStatus);
-			onMessage("peer:ping", () => this.ping);
 			onMessage("peer:current-status", () => this.status);
 
 			onMessage("peer:join", ({ data }) => {
@@ -76,10 +129,6 @@ export default defineBackground(() => {
 			onMessage("peer:disconnect", () => {
 				this.cleanupConnection();
 				this.cleanupPeer();
-				if (this.pingInterval) {
-					clearInterval(this.pingInterval);
-					this.pingInterval = null;
-				}
 			});
 
 			onMessage("peer:refresh-id", async () => {
@@ -108,11 +157,6 @@ export default defineBackground(() => {
 		}
 
 		private cleanupConnection() {
-			if (this.pingInterval) {
-				clearInterval(this.pingInterval);
-				this.pingInterval = null;
-			}
-
 			this.connection?.close();
 			this.connection = null;
 		}
@@ -126,7 +170,8 @@ export default defineBackground(() => {
 		private async createPeerClient() {
 			this.cleanupPeer();
 
-			const peer = new Peer();
+			const iceServers = await fetchIceServers();
+			const peer = new Peer({ config: { iceServers } });
 
 			this.peer = peer;
 			this.setupPeerEvents(peer);
@@ -164,20 +209,6 @@ export default defineBackground(() => {
 			this.attachConnection(connection);
 		}
 
-		private startPingFeed() {
-			if (this.pingInterval) {
-				clearInterval(this.pingInterval);
-				this.pingInterval = null;
-			}
-
-			this.pingInterval = setInterval(() => {
-				this.send({
-					type: "ping",
-					timestamp: performance.now(),
-				});
-			}, 1000);
-		}
-
 		private attachConnection(connection: DataConnection) {
 			this.cleanupConnection();
 
@@ -186,7 +217,6 @@ export default defineBackground(() => {
 			connection.on("open", () => {
 				console.log("[CONNECTION OPENED]");
 
-				this.startPingFeed();
 				sendMessage("peer:connection-change", this.connectionStatus);
 			});
 
@@ -208,16 +238,6 @@ export default defineBackground(() => {
 		}
 
 		private handler: Record<string, MessageCallback> = {
-			ping: (message) => {
-				this.send({
-					type: "pong",
-					timestamp: message.timestamp,
-				});
-			},
-
-			pong: (message) => {
-				this.ping = performance.now() - message.timestamp;
-			},
 			"url-sync": async (message) => {
 				if (!this.animepaheTab) return;
 

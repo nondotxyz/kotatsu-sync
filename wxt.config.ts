@@ -7,6 +7,13 @@ export default defineConfig({
 	imports: false,
 	targetBrowsers: ["firefox", "chrome", "safari"],
 	srcDir: "src",
+	manifest: {
+
+		permissions: ['storage'],
+
+		// Lets the background script call Cloudflare's TURN API without CORS issues.
+		host_permissions: ["https://rtc.live.cloudflare.com/*"],
+	},
 	vite: ({ mode }) => ({
 		plugins: [
 			tailwindcss({
@@ -18,6 +25,8 @@ export default defineConfig({
 		},
 	}),
 	webExt: {
-		disabled: true,
+		disabled: false,
 	},
+	
 });
+
