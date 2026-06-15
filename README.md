@@ -36,8 +36,20 @@ It's also not scalable for very large party of 10+ people because the nature of 
 
 As far as I know there isn't a good solution yet, if you have the time or the solution for that, [it would make for a fun side project](https://github.com/new) \*smug\*
 
+# I'm having trouble connecting with my friends, why?
+
+You most likely need a TURN Server
+
+While TURN servers aren't usually free, many providers offers generous quotas per month, for safety, we recommend [Cloudflare TURN Server](https://dash.cloudflare.com/?to=/:account/calls).
+
+Cloudflare includes 1000 GB of traffic per month. For comparison, a sync event in this extension is only about 50-60 bytes, and sync messages are sent once every 2 seconds while a video is playing, resulting in roughly 216 KB of traffic per hour.
+
+It'll take roughly 528 years of continous usage to exhaust the 1000 GB quota.
+
+note: only one side of the connection (preferably the host) needs to configure the TURN server.
+
 # Contribution
 
 Please, god. I never wanna mantain this ever. (in other words, any contribution is appreciated :3) Thank you <3
 
-Also I have 30% confidence that this will work on all platforms, so any issues are appreciated.
+Also I have 70% confidence that this will work on all platforms, so any issues are appreciated.

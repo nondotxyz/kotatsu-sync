@@ -8,8 +8,7 @@ export default defineConfig({
 	targetBrowsers: ["firefox", "chrome", "safari"],
 	srcDir: "src",
 	manifest: {
-
-		permissions: ['storage'],
+		permissions: ["storage"],
 
 		// Lets the background script call Cloudflare's TURN API without CORS issues.
 		host_permissions: ["https://rtc.live.cloudflare.com/*"],
@@ -25,8 +24,6 @@ export default defineConfig({
 		},
 	}),
 	webExt: {
-		disabled: false,
+		disabled: Boolean(process.env.WEBEXT_DISABLED) ?? false,
 	},
-	
 });
-
