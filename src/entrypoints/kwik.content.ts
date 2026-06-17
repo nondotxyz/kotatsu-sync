@@ -1,6 +1,7 @@
 import { defineContentScript } from "#imports";
 import { onMessage, sendMessage } from "@/messaging";
 import type { Nullable } from "@/type";
+import { debounce } from "@/utils";
 
 type VideoEventMap = {
 	play: {};
@@ -67,14 +68,17 @@ export default defineContentScript({
 			});
 		});
 
-		videoPlayer.addEventListener("seeked", () => {
-			if (status !== "HOST") return;
-			sendMessage("video:data-out", {
-				type: "data-in",
-				event: "sync",
-				currentTime: videoPlayer.currentTime,
-			});
-		});
+		videoPlayer.addEventListener(
+			"seeked",
+			debounce(() => {
+				if (status !== "HOST") return;
+				sendMessage("video:data-out", {
+					type: "data-in",
+					event: "sync",
+					currentTime: videoPlayer.currentTime,
+				});
+			}, 150),
+		);
 
 		onMessage("video:data-in", async (msg) => {
 			const data = msg.data;
