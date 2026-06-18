@@ -53,7 +53,10 @@ async function fetchIceServers(): Promise<RTCIceServer[]> {
 			? data.iceServers
 			: [data.iceServers];
 
-		console.debug("[TURN] Using Cloudflare ICE servers.");
+		const urls = iceServers.flatMap((s) =>
+			Array.isArray(s.urls) ? s.urls : [s.urls],
+		);
+		console.debug("[TURN] Using Cloudflare ICE servers:", urls);
 		return iceServers;
 	} catch (err) {
 		console.error("[TURN] Error generating ICE servers:", err);
@@ -171,7 +174,26 @@ export default defineBackground(() => {
 			this.cleanupPeer();
 
 			const iceServers = await fetchIceServers();
-			const peer = new Peer({ config: { iceServers } });
+
+			// When TURN is configured, force relay so ICE uses the stable
+			// relay↔relay path instead of gambling on a flaky direct/symmetric-NAT
+			// path that drops mid-session. Without creds, fall back to normal
+			// behaviour (STUN/direct) so credential-less users still connect.
+			const hasTurn = iceServers.some((server) => {
+				const urls = Array.isArray(server.urls)
+					? server.urls
+					: [server.urls];
+				return urls.some(
+					(url) => url.startsWith("turn:") || url.startsWith("turns:"),
+				);
+			});
+
+			const peer = new Peer({
+				config: {
+					iceServers,
+					iceTransportPolicy: hasTurn ? "relay" : "all",
+				},
+			});
 
 			this.peer = peer;
 			this.setupPeerEvents(peer);
@@ -216,6 +238,31 @@ export default defineBackground(() => {
 
 			connection.on("open", () => {
 				console.log("[CONNECTION OPENED]");
+
+				// Diagnostics: log ICE state changes and, on each, which candidate
+				// pair is actually in use (relay = TURN, host/srflx = direct).
+				const pc = connection.peerConnection;
+				pc?.addEventListener("iceconnectionstatechange", async () => {
+					const state = pc.iceConnectionState;
+					console.debug("[ICE STATE]", state);
+
+					try {
+						const stats = await pc.getStats();
+						stats.forEach((report: any) => {
+							if (report.type === "candidate-pair" && report.selected) {
+								const local: any = stats.get(report.localCandidateId);
+								const remote: any = stats.get(report.remoteCandidateId);
+								console.debug("[ICE PAIR]", state, {
+									local: local?.candidateType,
+									remote: remote?.candidateType,
+									protocol: local?.protocol,
+								});
+							}
+						});
+					} catch {
+						// getStats can throw if the connection is already torn down.
+					}
+				});
 
 				sendMessage("peer:connection-change", this.connectionStatus);
 			});
