@@ -1,0 +1,36 @@
+name: Build and Sign Firefox Extension
+
+on:
+    release:
+        types: [published]
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: pnpm
+            - uses: pnpm/action-setup@v4
+              with:
+                  version: 10
+            - run: pnpm ci
+            - run: pnpm build
+            - run: pnpm wxt zip --browser firefox
+            - run: |
+                  pnpm web-ext sign \
+                    --source-dir .output/firefox-mv2 \
+                    --api-key "$AMO_JWT_ISSUER" \
+                    --api-secret "$AMO_JWT_SECRET"
+              env:
+                  AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+                  AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+
+            - uses: softprops/action-gh-release@v2
+              with:
+                  files: |
+                      web-ext-artifacts/*.xpi
