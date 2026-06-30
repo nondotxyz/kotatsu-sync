@@ -17,6 +17,11 @@ interface ProtocolMap {
 
 	"video:data-out": (data: VideoData) => void;
 	"video:data-in": (data: VideoData) => void;
+
+
+	"offscreen:url-sync": (url: string) => void;
+	"offscreen:data-in": (data: VideoData) => void;
+	"offscreen:get-ice-servers": () => RTCIceServer[];
 }
 
 export const { sendMessage, onMessage } =
