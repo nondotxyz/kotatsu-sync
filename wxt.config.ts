@@ -16,12 +16,11 @@ export default defineConfig({
 				},
 			},
 		},
-		// "offscreen" hosts the WebRTC peer on Chromium (its service-worker
-		// background has no WebRTC); Firefox doesn't need or support it.
+		
 		permissions:
 			browser === "firefox" ? ["storage"] : ["storage", "offscreen"],
 
-		// Lets the background script call Cloudflare's TURN API without CORS issues.
+
 		host_permissions: ["https://rtc.live.cloudflare.com/*"],
 	}),
 	vite: ({ mode }) => ({
