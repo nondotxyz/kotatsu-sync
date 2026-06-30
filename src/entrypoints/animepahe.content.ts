@@ -20,10 +20,7 @@ export default defineContentScript({
 			location.href = msg.data;
 		});
 		setTimeout(() => {
-			console.log("hello");
-			(
-				document.querySelector(".click-to-load") as HTMLDivElement
-			).click();
+			document.querySelector<HTMLElement>(".click-to-load")?.click();
 		}, 100);
 	},
 });

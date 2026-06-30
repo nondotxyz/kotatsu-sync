@@ -7,7 +7,7 @@ export default defineConfig({
 	imports: false,
 	targetBrowsers: ["firefox", "chrome", "safari"],
 	srcDir: "src",
-	manifest: {
+	manifest: ({ browser }) => ({
 		browser_specific_settings: {
 			gecko: {
 				id: "kotatsu-sync@nondotxyz",
@@ -16,11 +16,14 @@ export default defineConfig({
 				},
 			},
 		},
-		permissions: ["storage"],
+		// "offscreen" hosts the WebRTC peer on Chromium (its service-worker
+		// background has no WebRTC); Firefox doesn't need or support it.
+		permissions:
+			browser === "firefox" ? ["storage"] : ["storage", "offscreen"],
 
 		// Lets the background script call Cloudflare's TURN API without CORS issues.
 		host_permissions: ["https://rtc.live.cloudflare.com/*"],
-	},
+	}),
 	vite: ({ mode }) => ({
 		plugins: [
 			tailwindcss({
