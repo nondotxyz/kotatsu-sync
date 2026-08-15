@@ -9,10 +9,10 @@ const host: PeerHost = {
 		try {
 			return await sendMessage("offscreen:get-ice-servers");
 		} catch {
-		
 			return [{ urls: "stun:stun.l.google.com:19302" }];
 		}
 	},
+	setBadge: (state) => sendMessage("action:set-badge", state),
 };
 
 new PeerClient(host);

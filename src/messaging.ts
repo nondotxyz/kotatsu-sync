@@ -1,6 +1,8 @@
 import { defineExtensionMessaging } from "@webext-core/messaging";
 import type { VideoData } from "./entrypoints/kwik.content";
 
+export type BadgeState = "connected" | "alert" | "idle";
+
 interface ProtocolMap {
 	"peer:id": () => string;
 	"peer:connection-status": () => boolean;
@@ -22,6 +24,9 @@ interface ProtocolMap {
 	"offscreen:url-sync": (url: string) => void;
 	"offscreen:data-in": (data: VideoData) => void;
 	"offscreen:get-ice-servers": () => RTCIceServer[];
+
+
+	"action:set-badge": (state: BadgeState) => void;
 }
 
 export const { sendMessage, onMessage } =
