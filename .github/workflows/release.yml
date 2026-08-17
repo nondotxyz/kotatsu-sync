@@ -53,7 +53,7 @@ jobs:
             --channel unlisted
 
       - name: Save signed XPI
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: firefox-xpi-${{ env.RELEASE_TAG }}
           path: web-ext-artifacts/kotatsu-sync-*-firefox.xpi
