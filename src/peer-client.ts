@@ -1,6 +1,8 @@
-import { onMessage, sendMessage } from "@/messaging";
+import { type BadgeState, onMessage, sendMessage } from "@/messaging";
 import type { Nullable } from "@/type";
 import { DataConnection, Peer } from "peerjs";
+import connectSoundUrl from "@/assets/connect.mp3";
+import disconnectSoundUrl from "@/assets/disconnect.mp3";
 import type { VideoData } from "./entrypoints/kwik.content";
 
 interface MessageObject {
@@ -26,6 +28,7 @@ export interface PeerHost {
 	sendDataToTab(data: VideoData): void;
 
 	getIceServers(): Promise<RTCIceServer[]>;
+	setBadge(state: BadgeState): void;
 }
 
 
@@ -33,8 +36,15 @@ export class PeerClient {
 	public peer: Nullable<Peer> = null;
 	public connection: Nullable<DataConnection> = null;
 	public status: "HOST" | "JOIN" | "UNKNOWN" = "UNKNOWN";
+	private connected = false;
+	private dropTimer: Nullable<NodeJS.Timeout> = null;
+	private intentionalDisconnect = false;
+	private readonly connectSound = new Audio(connectSoundUrl);
+	private readonly disconnectSound = new Audio(disconnectSoundUrl);
 
 	constructor(private host: PeerHost) {
+		this.connectSound.volume = 0.4;
+		this.disconnectSound.volume = 0.4;
 		this.createPeerClient().catch((err) =>
 			console.error("[PEER] Failed to initialise peer:", err),
 		);
@@ -46,7 +56,8 @@ export class PeerClient {
 	}
 
 	get connectionStatus() {
-		return this.connection?.open ?? false;
+
+		return this.connected;
 	}
 
 	private send(message: MessageObject) {
@@ -80,6 +91,7 @@ export class PeerClient {
 		});
 
 		onMessage("peer:disconnect", () => {
+			this.intentionalDisconnect = true;
 			this.cleanupConnection();
 			this.cleanupPeer();
 		});
@@ -88,6 +100,32 @@ export class PeerClient {
 			await this.createPeerClient();
 			return this.peerId;
 		});
+	}
+
+	private playSound(sound: HTMLAudioElement) {
+		sound.currentTime = 0;
+		sound.play().catch(() => {
+		});
+	}
+
+	private setConnected(value: boolean) {
+		if (this.dropTimer) {
+			clearTimeout(this.dropTimer);
+			this.dropTimer = null;
+		}
+
+		if (this.connected === value) return;
+		this.connected = value;
+		this.playSound(value ? this.connectSound : this.disconnectSound);
+		sendMessage("peer:connection-change", value);
+
+
+		if (value) {
+			this.host.setBadge("connected");
+		} else {
+			this.host.setBadge(this.intentionalDisconnect ? "idle" : "alert");
+		}
+		this.intentionalDisconnect = false;
 	}
 
 	private cleanupConnection() {
@@ -156,12 +194,22 @@ export class PeerClient {
 
 		connection.on("open", () => {
 			console.log("[CONNECTION OPENED]");
-
+			this.setConnected(true);
 
 			const pc = connection.peerConnection;
 			pc?.addEventListener("iceconnectionstatechange", async () => {
 				const state = pc.iceConnectionState;
 				console.debug("[ICE STATE]", state);
+
+				if (state === "connected" || state === "completed") {
+					this.setConnected(true);
+				} else if (state === "failed") {
+					this.setConnected(false);
+				} else if (state === "disconnected") {
+
+					if (this.dropTimer) clearTimeout(this.dropTimer);
+					this.dropTimer = setTimeout(() => this.setConnected(false), 3000);
+				}
 
 				try {
 					const stats = await pc.getStats();
@@ -179,14 +227,12 @@ export class PeerClient {
 				} catch {
 				}
 			});
-
-			sendMessage("peer:connection-change", this.connectionStatus);
 		});
 
 		connection.on("close", () => {
 			console.log("[CONNECTION CLOSED]");
+			this.setConnected(false);
 			this.cleanupConnection();
-			sendMessage("peer:connection-change", this.connectionStatus);
 		});
 
 		connection.on("error", console.error);
