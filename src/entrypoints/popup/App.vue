@@ -206,7 +206,7 @@ onMounted(async () => {
 						class="min-w-0 cursor-pointer truncate rounded-sm p-2 text-white/80 backdrop-blur-md transition-opacity hover:opacity-80 active:opacity-60"
 						@click="copy"
 					>
-						{{ peerId || "Generating peer ID..." }}
+						{{ peerId || "REFRESH ID ACTION NEEDED"}}
 					</div>
 					<div class="text-xs text-white/80">Click to copy</div>
 
